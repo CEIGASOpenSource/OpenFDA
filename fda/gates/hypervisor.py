@@ -6,6 +6,9 @@ and generic virtualization indicators.
 Hard gate: virtual machines are rejected because they obscure the
 true host environment. The FDA must scan the actual hardware the
 relay will operate on.
+
+IMPORTANT: Hyper-V enabled on the HOST (for Docker, WSL2, etc.) is
+NOT a virtual machine. We only flag when running AS a guest VM.
 """
 
 import os
@@ -64,39 +67,45 @@ def _detect_hypervisor_macos() -> bool:
 
 
 def _detect_hypervisor_windows() -> bool:
-    """Detect hypervisor on Windows."""
+    """Detect if running AS a virtual machine guest on Windows.
 
-    # 1. systeminfo — Hyper-V detection
+    Hyper-V running on the HOST (for Docker/WSL2) is NOT a VM.
+    We check the hardware model and VM guest tools, not just
+    whether Hyper-V is installed.
+    """
+
+    # 1. WMI model string — most reliable VM guest indicator
     try:
         result = subprocess.run(
-            ["systeminfo"],
-            capture_output=True, text=True, timeout=15,
+            ["wmic", "computersystem", "get", "Model", "/value"],
+            capture_output=True, text=True, timeout=10,
         )
-        output = result.stdout.lower()
-        vm_indicators = [
-            "vmware", "virtualbox", "virtual machine",
-            "hyper-v", "qemu", "xen", "kvm",
-        ]
-        for indicator in vm_indicators:
-            if indicator in output:
-                return True
+        for line in result.stdout.splitlines():
+            if line.strip().lower().startswith("model="):
+                model = line.split("=", 1)[1].strip().lower()
+                vm_models = ["vmware", "virtualbox", "virtual machine", "qemu", "kvm"]
+                if any(vm in model for vm in vm_models):
+                    return True
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    # 2. WMI model string
+    # 2. WMI manufacturer — "Microsoft Corporation" + "Virtual Machine" model = Hyper-V guest
     try:
         result = subprocess.run(
-            ["wmic", "computersystem", "get", "model"],
+            ["wmic", "computersystem", "get", "Manufacturer", "/value"],
             capture_output=True, text=True, timeout=10,
         )
-        output = result.stdout.lower()
-        vm_models = ["vmware", "virtualbox", "virtual machine", "qemu", "kvm"]
-        if any(vm in output for vm in vm_models):
+        manufacturer = ""
+        for line in result.stdout.splitlines():
+            if line.strip().lower().startswith("manufacturer="):
+                manufacturer = line.split("=", 1)[1].strip().lower()
+        # Known VM manufacturers (as guest)
+        if manufacturer in ("vmware, inc.", "innotek gmbh", "qemu", "xen"):
             return True
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    # 3. Registry: VM-specific keys
+    # 3. VM guest tools installed
     try:
         import winreg
         vm_keys = [
@@ -113,11 +122,12 @@ def _detect_hypervisor_windows() -> bool:
     except ImportError:
         pass
 
-    # 4. VM-specific services
-    vm_services = [
-        "VMTools", "VBoxService", "vmicheartbeat",
+    # 4. VM guest services (NOT host services like vmicheartbeat)
+    vm_guest_services = [
+        "VMTools",       # VMware guest
+        "VBoxService",   # VirtualBox guest
     ]
-    for service in vm_services:
+    for service in vm_guest_services:
         try:
             result = subprocess.run(
                 ["sc", "query", service],

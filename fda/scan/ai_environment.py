@@ -56,6 +56,24 @@ def _detect_claude(system: str, home: str) -> dict:
         if local and os.path.isdir(os.path.join(local, "Programs", "Claude")):
             info["desktop_app"] = True
 
+    # Claude Code (VSCode extension or standalone)
+    vscode_ext_dirs = []
+    if system == "Windows":
+        vscode_ext_dirs.append(os.path.join(home, ".vscode", "extensions"))
+        vscode_ext_dirs.append(os.path.join(home, ".cursor", "extensions"))
+    elif system == "Darwin":
+        vscode_ext_dirs.append(os.path.join(home, ".vscode", "extensions"))
+        vscode_ext_dirs.append(os.path.join(home, ".cursor", "extensions"))
+    for ext_dir in vscode_ext_dirs:
+        if os.path.isdir(ext_dir):
+            try:
+                for entry in os.listdir(ext_dir):
+                    if "claude" in entry.lower() or "anthropic" in entry.lower():
+                        info["claude_code_extension"] = entry
+                        break
+            except PermissionError:
+                pass
+
     # Config directories
     claude_dir = os.path.join(home, ".claude")
     if os.path.isdir(claude_dir):

@@ -89,41 +89,49 @@ def _detect_mdm_macos() -> bool:
 def _detect_mdm_windows() -> bool:
     """Detect MDM enrollment on Windows."""
 
-    # 1. dsregcmd — device registration status
+    # 1. dsregcmd — check specifically for MDM enrollment URL
     try:
         result = subprocess.run(
             ["dsregcmd", "/status"],
             capture_output=True, text=True, timeout=10,
         )
         output = result.stdout.lower()
-        # "MdmUrl" presence indicates MDM enrollment
-        if "mdmurl" in output:
-            return True
-        # "AzureAdJoined : YES" with MDM indicators
-        if "azureadjoined" in output and "yes" in output:
-            # Azure AD join alone doesn't mean MDM, but check for MDM URL
-            if "mdmurl" in output or "intune" in output:
-                return True
+        # MdmUrl with an actual value (not empty) = enrolled
+        for line in output.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("mdmurl") and ":" in stripped:
+                value = stripped.split(":", 1)[1].strip()
+                if value and value != "none":
+                    return True
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    # 2. Registry: MDM enrollment entries
+    # 2. Registry: actual MDM enrollment profiles with provider ID
     try:
         import winreg
         key_path = r"SOFTWARE\Microsoft\Enrollments"
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
-            # Subkeys indicate enrollment profiles
             subkey_count = winreg.QueryInfoKey(key)[0]
-            if subkey_count > 0:
-                return True
+            # Check each subkey for actual MDM provider data
+            for i in range(subkey_count):
+                try:
+                    subkey_name = winreg.EnumKey(key, i)
+                    with winreg.OpenKey(key, subkey_name) as subkey:
+                        try:
+                            provider, _ = winreg.QueryValueEx(subkey, "ProviderId")
+                            if provider:
+                                return True
+                        except OSError:
+                            pass
+                except OSError:
+                    pass
     except (ImportError, OSError):
         pass
 
-    # 3. Known MDM agent services
+    # 3. Known MDM agent services (specific to MDM, not generic Windows)
     mdm_services = [
         "IntuneManagementExtension",
         "AirWatchService",
-        "WMIRegistrationService",
     ]
     for service in mdm_services:
         try:

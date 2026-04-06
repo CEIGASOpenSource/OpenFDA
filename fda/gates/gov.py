@@ -37,12 +37,7 @@ def detect_gov_banner() -> bool:
 def _detect_piv_macos() -> bool:
     """Detect PIV/CAC smart card services on macOS."""
 
-    # 1. CryptoTokenKit smart card entries
-    ctk_dir = "/usr/lib/smartcardservices"
-    if os.path.isdir(ctk_dir):
-        return True
-
-    # 2. sc_auth paired identities
+    # 1. sc_auth paired identities (actual smart card pairing)
     try:
         result = subprocess.run(
             ["sc_auth", "list"],
@@ -53,10 +48,9 @@ def _detect_piv_macos() -> bool:
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
-    # 3. PIV middleware (OpenSC, CACKey)
+    # 2. PIV middleware (OpenSC, CACKey)
     piv_paths = [
         "/Library/OpenSC",
-        "/usr/local/lib/opensc-pkcs11.so",
         "/Library/CACKey",
         "/usr/lib/pkcs11/cackey.dylib",
     ]
@@ -64,25 +58,13 @@ def _detect_piv_macos() -> bool:
         if os.path.exists(path):
             return True
 
-    # 4. Smart card pairing policy (managed configuration)
-    try:
-        result = subprocess.run(
-            ["security", "smartcardctl", "status"],
-            capture_output=True, text=True, timeout=5,
-        )
-        output = result.stdout.lower()
-        if "enabled" in output or "paired" in output:
-            return True
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
-
     return False
 
 
 def _detect_gov_banner_macos() -> bool:
     """Detect government login banners on macOS."""
 
-    # 1. Login window policy text
+    # Login window policy text
     banner_paths = [
         "/Library/Security/PolicyBanner.txt",
         "/Library/Security/PolicyBanner.rtf",
@@ -90,7 +72,6 @@ def _detect_gov_banner_macos() -> bool:
     ]
     for path in banner_paths:
         if os.path.exists(path):
-            # Read and check for government keywords
             try:
                 if os.path.isfile(path):
                     with open(path, "r", errors="replace") as f:
@@ -98,21 +79,9 @@ def _detect_gov_banner_macos() -> bool:
                     if _has_gov_keywords(content):
                         return True
                 elif os.path.isdir(path):
-                    # .rtfd is a directory
                     return True
             except (PermissionError, OSError):
-                # Banner exists but can't read — conservative: flag it
-                return True
-
-    # 2. /etc/motd or /etc/issue
-    for path in ["/etc/motd", "/etc/issue"]:
-        try:
-            with open(path, "r", errors="replace") as f:
-                content = f.read(4096).lower()
-            if _has_gov_keywords(content):
-                return True
-        except (FileNotFoundError, PermissionError):
-            pass
+                pass
 
     return False
 
@@ -120,24 +89,17 @@ def _detect_gov_banner_macos() -> bool:
 # ── Windows ──────────────────────────────────────────────────
 
 def _detect_piv_windows() -> bool:
-    """Detect PIV/CAC smart card infrastructure on Windows."""
+    """Detect PIV/CAC smart card infrastructure on Windows.
 
-    # 1. Smart card service
-    try:
-        result = subprocess.run(
-            ["sc", "query", "SCardSvr"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if "running" in result.stdout.lower():
-            # Service running is common, but check for PIV middleware too
-            pass
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+    Note: SCardSvr (smart card service) runs by default on most Windows
+    installs and is NOT an indicator of PIV/CAC. We only flag actual
+    PIV middleware or DoD certificate infrastructure.
+    """
 
-    # 2. PIV middleware (ActivClient, 90Meter, HID)
+    # 1. PIV middleware (ActivClient, 90Meter, HID Global)
     piv_paths = [
         os.path.join(os.environ.get("PROGRAMFILES", ""), "ActivIdentity"),
-        os.path.join(os.environ.get("PROGRAMFILES", ""), "HID Global"),
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "HID Global", "ActivClient"),
         os.path.join(os.environ.get("PROGRAMFILES", ""), "90Meter"),
         os.path.join(os.environ.get("PROGRAMFILES", ""), "Charismathics"),
     ]
@@ -145,25 +107,18 @@ def _detect_piv_windows() -> bool:
         if path and os.path.isdir(path):
             return True
 
-    # 3. Registry: smart card credential provider configured for login
-    try:
-        import winreg
-        # PIV logon credential provider GUID
-        cp_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{94596C7E-3744-41CE-893E-BBF09122F76A}"
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, cp_path):
-            return True
-    except (ImportError, OSError):
-        pass
-
-    # 4. DoD certificates in machine store
+    # 2. DoD root certificates in machine store
     try:
         result = subprocess.run(
             ["certutil", "-store", "Root"],
             capture_output=True, text=True, timeout=10,
         )
-        output = result.stdout.lower()
-        if "dod" in output or "department of defense" in output:
-            return True
+        # Look for actual DoD certificate issuers, not substring matches
+        for line in result.stdout.splitlines():
+            line_lower = line.lower().strip()
+            if "issuer:" in line_lower or "subject:" in line_lower:
+                if "department of defense" in line_lower or "dod root ca" in line_lower:
+                    return True
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
@@ -203,17 +158,12 @@ def _has_gov_keywords(text: str) -> bool:
     indicators = [
         "department of defense",
         "u.s. government",
-        "us government",
         "united states government",
         "dod information system",
-        "authorized use only",
         "consent to monitoring",
         "you are accessing a u.s. government",
-        ".mil",
-        ".gov",
         "controlled unclassified",
         "for official use only",
-        "fouo",
         "federal computer",
     ]
     return any(indicator in text for indicator in indicators)

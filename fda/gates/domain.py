@@ -58,22 +58,10 @@ def _detect_domain_macos() -> bool:
         )
         output = result.stdout
         # Network-bound directories beyond Local and Contact
-        network_indicators = ["Active Directory", "LDAPv3", "BSD"]
+        network_indicators = ["Active Directory", "LDAPv3"]
         for indicator in network_indicators:
             if indicator in output:
                 return True
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
-
-    # 3. Kerberos ticket cache (indicates domain auth)
-    try:
-        result = subprocess.run(
-            ["klist"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0 and "principal" in result.stdout.lower():
-            # Has valid Kerberos tickets — likely domain-authenticated
-            return True
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
@@ -87,11 +75,8 @@ def _detect_sso_macos() -> bool:
     sso_paths = [
         "/Applications/Okta Verify.app",
         "/Library/Application Support/Okta",
-        "/Applications/Microsoft Authenticator.app",
-        "/Library/Application Support/com.apple.SSOExtension",
         "/Applications/Ping Identity.app",
         "/Applications/OneLogin.app",
-        "/Applications/Duo Mobile.app",
     ]
     for path in sso_paths:
         if os.path.exists(path):
@@ -132,14 +117,29 @@ def _detect_domain_windows() -> bool:
             ["dsregcmd", "/status"],
             capture_output=True, text=True, timeout=10,
         )
-        output = result.stdout.lower()
-        # Check for any domain join type
-        if "domainjoined : yes" in output.replace(" ", ""):
-            return True
-        if "azureadjoined : yes" in output.replace(" ", ""):
-            return True
-        if "enterprisejoined : yes" in output.replace(" ", ""):
-            return True
+        # Parse key-value pairs properly
+        for line in result.stdout.splitlines():
+            stripped = line.strip().lower().replace(" ", "")
+            if stripped.startswith("domainjoined:") and "yes" in stripped:
+                return True
+            if stripped.startswith("azureadjoined:") and "yes" in stripped:
+                # Azure AD joined — but check if it's a personal Microsoft account
+                # vs actual org enrollment. Personal accounts show "AzureAdJoined: YES"
+                # but TenantName will be empty or personal
+                pass  # Fall through to tenant check below
+            if stripped.startswith("enterprisejoined:") and "yes" in stripped:
+                return True
+
+        # If Azure AD joined, verify it's an org tenant not personal
+        output_lower = result.stdout.lower()
+        if "azureadjoined" in output_lower and "yes" in output_lower:
+            for line in result.stdout.splitlines():
+                stripped = line.strip().lower()
+                if stripped.startswith("tenantname") and ":" in stripped:
+                    tenant = stripped.split(":", 1)[1].strip()
+                    # Personal Microsoft accounts won't have an org tenant
+                    if tenant and tenant not in ("", "none"):
+                        return True
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
 
@@ -148,22 +148,9 @@ def _detect_domain_windows() -> bool:
     computername = os.environ.get("COMPUTERNAME", "")
     # If USERDOMAIN differs from COMPUTERNAME, machine is domain-joined
     if userdomain and computername and userdomain.upper() != computername.upper():
-        return True
-
-    # 3. systeminfo domain field
-    try:
-        result = subprocess.run(
-            ["systeminfo"],
-            capture_output=True, text=True, timeout=15,
-        )
-        for line in result.stdout.splitlines():
-            if line.strip().lower().startswith("domain:"):
-                domain_value = line.split(":", 1)[1].strip().lower()
-                # "WORKGROUP" is the default non-domain value
-                if domain_value and domain_value != "workgroup":
-                    return True
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+        # Exclude "MicrosoftAccount" which shows up for personal MS accounts
+        if userdomain.upper() != "MICROSOFTACCOUNT":
+            return True
 
     return False
 
@@ -171,28 +158,16 @@ def _detect_domain_windows() -> bool:
 def _detect_sso_windows() -> bool:
     """Detect enterprise SSO agents on Windows."""
 
-    # Registry: credential providers (SSO extensions)
-    try:
-        import winreg
-        cp_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers"
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, cp_path) as key:
-            subkey_count = winreg.QueryInfoKey(key)[0]
-            # Default Windows has a few; enterprise SSO adds more
-            if subkey_count > 8:
-                return True
-    except (ImportError, OSError):
-        pass
-
-    # Known SSO agent processes/services
-    sso_indicators = [
-        "OktaVerify", "okta", "Ping Identity",
-        "OneLogin", "CyberArk", "Thales",
+    # Known SSO agent installations (look for actual SSO product directories)
+    sso_products = [
+        "Okta", "Okta Verify",
+        "OneLogin",
+        "CyberArk Identity",
+        "Ping Identity",
     ]
-    # Check installed programs
     program_dirs = [
         os.environ.get("PROGRAMFILES", r"C:\Program Files"),
         os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
-        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs"),
     ]
     for prog_dir in program_dirs:
         if not prog_dir or not os.path.isdir(prog_dir):
@@ -201,7 +176,7 @@ def _detect_sso_windows() -> bool:
             entries = os.listdir(prog_dir)
             for entry in entries:
                 entry_lower = entry.lower()
-                if any(sso.lower() in entry_lower for sso in sso_indicators):
+                if any(sso.lower() == entry_lower for sso in sso_products):
                     return True
         except PermissionError:
             pass
