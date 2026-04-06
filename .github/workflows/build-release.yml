@@ -14,11 +14,9 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact: openfda.exe
-            pyinstaller_name: openfda.exe
+            zip_name: openfda-windows.zip
           - os: macos-latest
-            artifact: openfda-mac
-            pyinstaller_name: openfda
+            zip_name: openfda-mac.zip
 
     runs-on: ${{ matrix.os }}
 
@@ -32,18 +30,23 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
-      - name: Build standalone binary
+      - name: Build
         run: pyinstaller openfda.spec
 
-      - name: Rename artifact (macOS)
+      - name: Zip (Windows)
+        if: matrix.os == 'windows-latest'
+        run: Compress-Archive -Path dist\openfda\* -DestinationPath ${{ matrix.zip_name }}
+        shell: pwsh
+
+      - name: Zip (macOS)
         if: matrix.os == 'macos-latest'
-        run: mv dist/openfda dist/openfda-mac
+        run: cd dist && zip -r ../${{ matrix.zip_name }} openfda/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.artifact }}
+          name: ${{ matrix.zip_name }}
+          path: ${{ matrix.zip_name }}
 
   release:
     needs: build
@@ -61,5 +64,5 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            artifacts/openfda.exe/openfda.exe
-            artifacts/openfda-mac/openfda-mac
+            artifacts/openfda-windows.zip/openfda-windows.zip
+            artifacts/openfda-mac.zip/openfda-mac.zip

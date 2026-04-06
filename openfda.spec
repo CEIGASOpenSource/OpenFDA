@@ -5,7 +5,7 @@ Build:
     pip install pyinstaller
     pyinstaller openfda.spec
 
-Produces a single executable in dist/openfda (or dist/openfda.exe on Windows).
+Produces dist/openfda/ directory with the executable and all dependencies.
 No Python installation required on the target machine.
 """
 
@@ -52,14 +52,22 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='openfda',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    strip=False,
+    upx=False,
     console=True,
     icon=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name='openfda',
 )
