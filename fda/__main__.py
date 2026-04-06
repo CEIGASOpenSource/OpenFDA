@@ -116,7 +116,16 @@ def main():
 def _submit_report(report: dict, url: str, quiet: bool = False) -> bool:
     """Submit signed report to platform API."""
     try:
-        data = json.dumps(report).encode("utf-8")
+        # Wrap report in the format the platform API expects
+        attestation = report.get("attestation", {})
+        payload = {
+            "nonce": attestation.get("nonce", ""),
+            "report": report,
+            "environment_hash": attestation.get("environment_hash", ""),
+            "hmac_signature": attestation.get("hmac"),
+            "machine_id": attestation.get("machine_id"),
+        }
+        data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url,
             data=data,
