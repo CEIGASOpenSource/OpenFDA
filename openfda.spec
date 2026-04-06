@@ -9,9 +9,11 @@ Produces a single executable in dist/openfda (or dist/openfda.exe on Windows).
 No Python installation required on the target machine.
 """
 
+import os
+
 a = Analysis(
-    ['fda/__main__.py'],
-    pathex=[],
+    ['run.py'],
+    pathex=[os.path.abspath('.')],
     binaries=[],
     datas=[],
     hiddenimports=[
