@@ -119,7 +119,9 @@ def _detect_mdm_windows() -> bool:
                     with winreg.OpenKey(key, subkey_name) as subkey:
                         try:
                             provider, _ = winreg.QueryValueEx(subkey, "ProviderId")
-                            if provider:
+                            # Built-in Windows providers are NOT MDM
+                            builtin = {"local authority", "deploy authority", "cloud authority"}
+                            if provider and provider.strip().lower() not in builtin:
                                 return True
                         except OSError:
                             pass
