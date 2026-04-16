@@ -8,7 +8,7 @@ The attestation flow:
 
 The environment_hash is the cryptographic anchor for the entire
 policy chain. If anyone modifies the scan results between FDA
-and relay provisioning, the hash chain breaks and the relay
+and provisioning, the hash chain breaks and the personal computer
 is rejected.
 """
 

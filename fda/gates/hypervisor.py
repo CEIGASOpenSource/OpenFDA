@@ -5,7 +5,7 @@ and generic virtualization indicators.
 
 Hard gate: virtual machines are rejected because they obscure the
 true host environment. The FDA must scan the actual hardware the
-relay will operate on.
+personal computer will operate on.
 
 IMPORTANT: Hyper-V enabled on the HOST (for Docker, WSL2, etc.) is
 NOT a virtual machine. We only flag when running AS a guest VM.

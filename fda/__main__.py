@@ -8,7 +8,7 @@ Usage:
 Or just double-click — the program will ask for your nonce.
 
 The FDA scans the local environment, checks hard gates, and produces
-a signed report for CEIGAS relay provisioning.
+a signed report for CEIGAS personal computer provisioning.
 """
 
 import argparse
@@ -29,14 +29,14 @@ from fda.report.builder import build_report, report_to_json
 from fda.report.display import display_report
 
 # Default submit endpoint — users don't need to think about this
-DEFAULT_SUBMIT_URL = "https://privatae.ai/api/mastercode/relay/fda-submit"
+DEFAULT_SUBMIT_URL = "https://privatae.ai/api/mastercode/fda/submit"
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 BANNER = f"""
   ╔═══════════════════════════════════════════╗
   ║          CeigasFDA — Environment Scan       ║
-  ║       CEIGAS Desktop Relay Setup          ║
+  ║       Personal Computer Setup             ║
   ║                                v{VERSION}    ║
   ╚═══════════════════════════════════════════╝
 """
@@ -87,7 +87,7 @@ def _pause_before_exit(code: int = 0):
 def main():
     parser = argparse.ArgumentParser(
         prog="ceigasfda",
-        description="CeigasFDA — Forward Deployed Agent for CEIGAS relay provisioning",
+        description="CeigasFDA — Forward Deployed Agent for personal computer provisioning",
     )
     parser.add_argument(
         "challenge",

@@ -4,7 +4,7 @@ Detects: Intune, JAMF, Workspace ONE, Kandji, Mosyle, Addigy,
 and generic MDM enrollment indicators.
 
 Hard gate: if MDM is detected, the machine is organizationally managed
-and relay provisioning is rejected.
+and personal computer provisioning is rejected.
 """
 
 import os

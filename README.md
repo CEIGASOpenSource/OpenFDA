@@ -1,8 +1,8 @@
 # CeigasFDA — Forward Deployed Agent
 
-**Open-source environment scanner for CEIGAS relay provisioning.**
+**Open-source environment scanner for CEIGAS personal computer provisioning.**
 
-CeigasFDA is a lightweight, read-only agent that scans a user's desktop environment before a [CEIGAS](https://github.com/CEIGASOpenSource)-governed relay is provisioned. It gathers environment intelligence so the entity can build an informed, scoped automation policy — and produces a cryptographic hash chain that prevents any tampering between scan and relay deployment.
+CeigasFDA is a lightweight, read-only agent that scans a user's desktop environment before a [CEIGAS](https://github.com/CEIGASOpenSource)-governed personal computer is provisioned. It gathers environment intelligence so the entity can build an informed, scoped automation policy — and produces a cryptographic hash chain that prevents any tampering between scan and deployment.
 
 ## What It Does
 
@@ -38,7 +38,7 @@ These are structural rejections. No entity, no platform operator, no override ca
 | Domain joined | Machine belongs to an Active Directory or Azure AD domain |
 | Hypervisor | Running inside a virtual machine |
 
-If any hard gate triggers, CeigasFDA reports `REJECT` and no relay can be provisioned. The platform cannot override this.
+If any hard gate triggers, CeigasFDA reports `REJECT` and no personal computer can be provisioned. The platform cannot override this.
 
 ### Hash Chain of Custody
 
@@ -56,12 +56,12 @@ Entity receives report + environment_hash
     ├── policy_hash = SHA256(approved_policy + environment_hash)
     │
     ▼
-CEIGAS mints relay with signed policy
+CEIGAS mints personal computer with signed policy
     │
-    ├── container_hash = SHA256(relay_contents + policy_hash)
+    ├── container_hash = SHA256(container_contents + policy_hash)
     │
     ▼
-Relay connects to platform
+Personal computer connects to platform
     │
     ├── Platform verifies: container_hash → policy_hash → environment_hash
     │
@@ -70,11 +70,11 @@ Chain intact? → CONNECT
 Any link broken? → REJECT
 ```
 
-Nobody in the loop can manipulate the policy — not the entity, not the platform, not an intermediary. The FDA's environment hash is the cryptographic anchor. If the relay doesn't match what your machine reported, it's rejected.
+Nobody in the loop can manipulate the policy — not the entity, not the platform, not an intermediary. The FDA's environment hash is the cryptographic anchor. If the personal computer doesn't match what your machine reported, it's rejected.
 
 ### SSH Elimination
 
-CEIGAS relays do not use SSH. All communication flows through a governed tunnel where every action is policy-checked, auditable, and revocable. SSH would bypass the domain model entirely. CeigasFDA verifies the environment so the relay can operate through a governed channel instead of an ungoverned pipe.
+CEIGAS personal computers do not use SSH. All communication flows through a governed tunnel where every action is policy-checked, auditable, and revocable. SSH would bypass the domain model entirely. CeigasFDA verifies the environment so the personal computer can operate through a governed channel instead of an ungoverned pipe.
 
 ## Supported Platforms
 
@@ -117,7 +117,7 @@ The FDA produces a JSON report. You see the full report before it's sent. Exampl
 
 ```json
 {
-  "version": "1.0.0",
+  "version": "1.5.0",
   "attestation": {
     "nonce": "platform-issued-challenge",
     "machine_id": "os-install-uuid",
@@ -181,7 +181,8 @@ fda/
 │   ├── drives.py         # Volume mapping, disk space
 │   ├── resources.py      # CPU, RAM, GPU detection
 │   ├── profile.py        # User directory structure
-│   └── tools.py          # Installed developer tools
+│   ├── tools.py          # Installed developer tools
+│   └── ai_environment.py # AI/ML environment detection
 ├── attest/
 │   ├── __init__.py
 │   ├── machine_id.py     # OS install UUID extraction
@@ -194,7 +195,7 @@ fda/
 
 ## Contributing
 
-CeigasFDA is the public security surface of the CEIGAS relay system. Contributions that improve detection accuracy, add platform support, or identify bypass vectors are welcome.
+CeigasFDA is the public security surface of the CEIGAS personal computer system. Contributions that improve detection accuracy, add platform support, or identify bypass vectors are welcome.
 
 ## License
 

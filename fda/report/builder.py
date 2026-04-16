@@ -1,7 +1,8 @@
 """Report builder — assembles the final FDA report.
 
 Combines gate results, scan data, and attestation into a single
-signed JSON document ready for user review and platform submission.
+signed JSON document ready for user review and personal computer
+provisioning submission.
 """
 
 import time

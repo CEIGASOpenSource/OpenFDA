@@ -13,7 +13,7 @@ def display_report(report: dict) -> str:
     lines = []
     lines.append("")
     lines.append("=" * 60)
-    lines.append("  CeigasFDA — Environment Report")
+    lines.append("  CeigasFDA — Personal Computer Report")
     lines.append("=" * 60)
     lines.append("")
 
@@ -22,7 +22,7 @@ def display_report(report: dict) -> str:
     if verdict == "REJECT":
         lines.append("  VERDICT: REJECT")
         lines.append("")
-        lines.append("  This environment cannot host a CEIGAS relay.")
+        lines.append("  This environment cannot host a personal computer.")
         lines.append("  Reason(s):")
         gates = report.get("hard_gates", {})
         for gate, triggered in gates.items():
@@ -119,8 +119,8 @@ def display_report(report: dict) -> str:
 
     lines.append("=" * 60)
     lines.append("")
-    lines.append("  This report will be sent to your entity for policy")
-    lines.append("  generation. You can review the full JSON below.")
+    lines.append("  This report will be sent to your entity for personal")
+    lines.append("  computer provisioning. You can review the full JSON below.")
     lines.append("")
 
     # Full JSON (user can inspect everything)
